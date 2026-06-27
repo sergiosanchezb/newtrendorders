@@ -11,7 +11,6 @@ GOOGLE_CREDS = json.loads(os.environ["GOOGLE_CREDS"])
 
 BASE_URL = "https://new-trend.info/staff"
 LOGIN_URL = f"{BASE_URL}/login.php"
-ORDERS_URL = f"{BASE_URL}/pages/page_orders_get.php"
 
 # ---------------- GOOGLE SHEETS ----------------
 scope = [
@@ -30,6 +29,23 @@ with sync_playwright() as p:
     context = browser.new_context()
     page = context.new_page()
 
+    # Interceptar TODAS las requests que salgan
+    def handle_request(request):
+        if "new-trend.info" in request.url and ".php" in request.url:
+            print(f"📤 REQUEST: {request.method} {request.url}")
+            if request.post_data:
+                print(f"   POST DATA: {request.post_data}")
+
+    def handle_response(response):
+        if "new-trend.info" in response.url and ".php" in response.url:
+            raw = response.text()
+            if raw.strip() not in ["", "false", "true"]:
+                print(f"📥 RESPONSE: {response.url}")
+                print(f"   {raw[:300]}")
+
+    page.on("request", handle_request)
+    page.on("response", handle_response)
+
     # LOGIN
     page.goto(LOGIN_URL)
     page.fill('input[placeholder="Username"]', USERNAME)
@@ -41,41 +57,25 @@ with sync_playwright() as p:
     if "login" in page.url.lower():
         raise Exception("❌ Login fallido")
 
-    # PROBAR DISTINTAS COMBINACIONES DE PARÁMETROS
-    param_variants = [
-        {
-            "user_type": "vendor",
-            "vendor_code": "CH",
-            "datefilter": "TODAY",
-            "view_type": "ALL",
-        },
-        {
-            "is_vendor": 1,
-            "vendor_code": "CH",
-            "datefilter": "TODAY",
-            "view_type": "ALL",
-            "user_id": "%",
-            "show_direct": 1,
-            "is_admin": 0,
-            "is_seller": 0,
-            "is_agent": 0,
-        },
-        {
-            "user_type": "vendor",
-            "vendor_code": "CH",
-            "datefilter": "TODAY",
-        },
-        {
-            "vendor_code": "CH",
-            "datefilter": "TODAY",
-        },
-    ]
+    # Navegar al home y esperar
+    page.goto(f"{BASE_URL}/")
+    page.wait_for_load_state("networkidle")
+    page.wait_for_timeout(3000)
 
-    for i, params in enumerate(param_variants):
-        print(f"\n--- Probando variante {i+1}: {params} ---")
-        response = context.request.get(ORDERS_URL, params=params)
-        print(f"Status: {response.status}")
-        raw = response.text()
-        print(f"Respuesta: {raw[:300]}")
+    # Imprimir cookies actuales
+    cookies = context.cookies()
+    print("\n=== COOKIES ===")
+    for c in cookies:
+        print(f"  {c['name']}={c['value'][:30]}...")
+
+    # Intentar hacer clic en cualquier enlace que contenga "order" o "Order"
+    print("\n=== BUSCANDO ENLACES DE PEDIDOS ===")
+    links = page.eval_on_selector_all(
+        "a",
+        "els => els.map(e => ({href: e.href, text: e.innerText.trim(), onclick: e.getAttribute('onclick')}))"
+    )
+    for l in links:
+        if l["href"] or l["onclick"]:
+            print(f"  TEXT: '{l['text']}' | HREF: {l['href']} | ONCLICK: {l['onclick']}")
 
     browser.close()
