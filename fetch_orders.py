@@ -23,7 +23,11 @@ scope = [
 
 creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDS, scope)
 client = gspread.authorize(creds)
-sheet = client.open("Orders").sheet1
+
+sheet = client.open_by_url(
+    "https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit"
+).sheet1
+
 
 existing_ids = set(sheet.col_values(1))
 
