@@ -35,23 +35,13 @@ with sync_playwright() as p:
     page = browser.new_page()
 
     # LOGIN REAL
-    #page.goto(LOGIN_URL)
-
-    #page.fill('input[name="username"]', USERNAME)
-    #page.fill('input[name="password"]', PASSWORD)
-    #page.click('button[type="submit"]')
-
-    #page.wait_for_timeout(5000)
-
     page.goto(LOGIN_URL)
 
-page.wait_for_selector(
-    'input[name="Username"]',
-    state="visible",
-    timeout=60000
-)
+    page.fill('input[name="Username"]', USERNAME)
+    page.fill('input[name="Password"]', PASSWORD)
+    page.click('button[type="submit"]')
 
-page.fill('input[name="Username"]', USERNAME)
+    page.wait_for_timeout(5000)
 
     # LLAMADA AL ENDPOINT YA AUTENTICADO
     response = page.request.get(ORDERS_URL, params={
