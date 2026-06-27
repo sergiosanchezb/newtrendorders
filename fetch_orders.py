@@ -10,10 +10,8 @@ PASSWORD = os.environ["PASSWORD"]
 GOOGLE_CREDS = json.loads(os.environ["GOOGLE_CREDS"])
 
 BASE_URL = "https://new-trend.info/staff"
-
 LOGIN_URL = f"{BASE_URL}/login.php"
 ORDERS_URL = f"{BASE_URL}/pages/page_orders_get.php"
-
 
 # ---------------- GOOGLE SHEETS ----------------
 scope = [
@@ -23,11 +21,8 @@ scope = [
 
 creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDS, scope)
 client = gspread.authorize(creds)
-
 sheet = client.open("Orders").sheet1
-
 existing_ids = set(sheet.col_values(1))
-
 
 # ---------------- PLAYWRIGHT ----------------
 with sync_playwright() as p:
@@ -35,14 +30,21 @@ with sync_playwright() as p:
     context = browser.new_context()
     page = context.new_page()
 
+    # LOGIN
     page.goto(LOGIN_URL)
-
     page.fill('input[placeholder="Username"]', USERNAME)
     page.fill('input[placeholder="Password"]', PASSWORD)
     page.click('button[type="submit"]')
-
     page.wait_for_load_state("networkidle")
 
+    # Verificar que el login fue exitoso
+    current_url = page.url
+    print(f"URL después del login: {current_url}")
+
+    if "login" in current_url.lower():
+        raise Exception("❌ Login fallido - verificar USERNAME y PASSWORD en los secrets de GitHub")
+
+    # OBTENER PEDIDOS
     response = context.request.get(ORDERS_URL, params={
         "is_admin": 0,
         "is_vendor": 1,
@@ -55,10 +57,21 @@ with sync_playwright() as p:
         "datefilter": "TODAY"
     })
 
-    data = response.json()
-    orders = data.get("data", [])
+    print(f"Status HTTP: {response.status}")
+    raw = response.text()
+    print(f"Respuesta cruda (primeros 300 chars): {raw[:300]}")
 
-    print("ORDERS FOUND:", len(orders))
+    data = response.json()
+
+    # ✅ Validar que la respuesta es un dict con datos
+    if not isinstance(data, dict):
+        raise Exception(f"❌ Respuesta inesperada del servidor: {data} (tipo: {type(data).__name__})")
+
+    if not data.get("success", True) is False:
+        print(f"⚠️ La API reportó error: {data}")
+
+    orders = data.get("data", [])
+    print(f"ORDERS FOUND: {len(orders)}")
 
     # INSERTAR EN SHEETS
     for o in orders:
@@ -80,6 +93,7 @@ with sync_playwright() as p:
             o.get("commission"),
             o.get("status"),
         ])
+        print(f"✅ Insertado pedido {oid}")
 
     print("SYNC DONE")
     browser.close()
