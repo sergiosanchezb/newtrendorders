@@ -11,6 +11,7 @@ GOOGLE_CREDS = json.loads(os.environ["GOOGLE_CREDS"])
 
 BASE_URL = "https://new-trend.info/staff"
 LOGIN_URL = f"{BASE_URL}/login.php"
+ORDERS_URL = f"{BASE_URL}/pages/page_orders_get.php"
 
 # ---------------- GOOGLE SHEETS ----------------
 scope = [
@@ -40,15 +41,41 @@ with sync_playwright() as p:
     if "login" in page.url.lower():
         raise Exception("❌ Login fallido")
 
-    # CARGAR DASHBOARD
-    page.goto(f"{BASE_URL}/pages/page_dashboard_es.php?user_type=vendor&vendor_code=CH")
-    page.wait_for_load_state("networkidle")
-    page.wait_for_timeout(3000)
+    # PROBAR DISTINTAS COMBINACIONES DE PARÁMETROS
+    param_variants = [
+        {
+            "user_type": "vendor",
+            "vendor_code": "CH",
+            "datefilter": "TODAY",
+            "view_type": "ALL",
+        },
+        {
+            "is_vendor": 1,
+            "vendor_code": "CH",
+            "datefilter": "TODAY",
+            "view_type": "ALL",
+            "user_id": "%",
+            "show_direct": 1,
+            "is_admin": 0,
+            "is_seller": 0,
+            "is_agent": 0,
+        },
+        {
+            "user_type": "vendor",
+            "vendor_code": "CH",
+            "datefilter": "TODAY",
+        },
+        {
+            "vendor_code": "CH",
+            "datefilter": "TODAY",
+        },
+    ]
 
-    # Imprimir HTML para inspección
-    html = page.content()
-    print("=== HTML DEL DASHBOARD (primeros 5000 chars) ===")
-    print(html[:5000])
-    print("=== FIN HTML ===")
+    for i, params in enumerate(param_variants):
+        print(f"\n--- Probando variante {i+1}: {params} ---")
+        response = context.request.get(ORDERS_URL, params=params)
+        print(f"Status: {response.status}")
+        raw = response.text()
+        print(f"Respuesta: {raw[:300]}")
 
     browser.close()
