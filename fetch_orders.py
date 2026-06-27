@@ -4,7 +4,7 @@ from playwright.sync_api import sync_playwright
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-USERNAME = os.environ["SITE_USERNAME"]
+USERNAME = os.environ["USERNAME"]
 PASSWORD = os.environ["PASSWORD"]
 
 GOOGLE_CREDS = json.loads(os.environ["GOOGLE_CREDS"])
