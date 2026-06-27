@@ -40,62 +40,37 @@ with sync_playwright() as p:
     if "login" in page.url.lower():
         raise Exception("❌ Login fallido - verificar SITE_USERNAME y PASSWORD en los secrets de GitHub")
 
-    # INTERCEPTAR REQUESTS
+    # INTERCEPTAR TODAS LAS REQUESTS
     captured = []
 
     def handle_response(response):
-        if "page_orders_get.php" in response.url:
-            print(f"🔍 URL interceptada: {response.url}")
-            try:
-                body = response.json()
-                print(f"📦 Respuesta: {str(body)[:300]}")
-                captured.append((response.url, body))
-            except Exception as e:
-                print(f"⚠️ Error parseando: {e}")
+        url = response.url
+        if "new-trend.info" in url:
+            print(f"🌐 {response.status} {url}")
+            content_type = response.headers.get("content-type", "")
+            if "json" in content_type or ".php" in url:
+                try:
+                    body = response.json()
+                    print(f"   📦 JSON: {str(body)[:200]}")
+                    captured.append((url, body))
+                except:
+                    pass
 
     page.on("response", handle_response)
 
-    # CARGAR HOME (donde están los pedidos)
+    # CARGAR HOME
     page.goto(f"{BASE_URL}/")
     page.wait_for_load_state("networkidle")
-    page.wait_for_timeout(3000)
+    page.wait_for_timeout(5000)
 
-    print(f"Total requests interceptadas: {len(captured)}")
+    print(f"\nTotal requests JSON capturadas: {len(captured)}")
     for url, body in captured:
         print(f"  → {url}")
 
     if not captured:
-        raise Exception("❌ No se interceptó page_orders_get.php — la web puede usar otro endpoint")
+        raise Exception("❌ No se encontró ningún endpoint JSON — revisar logs arriba para ver todas las URLs")
 
-    data = captured[0][1]
-
-    if not isinstance(data, dict):
-        raise Exception(f"❌ Respuesta inesperada: {data} (tipo: {type(data).__name__})")
-
-    orders = data.get("data", [])
-    print(f"ORDERS FOUND: {len(orders)}")
-
-    # INSERTAR EN SHEETS
-    for o in orders:
-        oid = str(o.get("id"))
-
-        if oid in existing_ids:
-            continue
-
-        sheet.append_row([
-            oid,
-            o.get("date"),
-            o.get("order_number"),
-            o.get("reviewer"),
-            o.get("email"),
-            o.get("product"),
-            o.get("code"),
-            o.get("asin"),
-            o.get("store"),
-            o.get("commission"),
-            o.get("status"),
-        ])
-        print(f"✅ Insertado pedido {oid}")
-
-    print("SYNC DONE")
+    # Una vez que veamos los logs, aquí irá la lógica final
+    # Por ahora solo mostramos lo capturado
+    print("\nSYNC PENDIENTE - revisar logs para identificar endpoint correcto")
     browser.close()
