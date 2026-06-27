@@ -46,12 +46,12 @@ with sync_playwright() as p:
     page.goto(LOGIN_URL)
 
 page.wait_for_selector(
-    'input[name="username"]',
+    'input[name="Username"]',
     state="visible",
     timeout=60000
 )
 
-page.fill('input[name="username"]', USERNAME)
+page.fill('input[name="Username"]', USERNAME)
 
     # LLAMADA AL ENDPOINT YA AUTENTICADO
     response = page.request.get(ORDERS_URL, params={
