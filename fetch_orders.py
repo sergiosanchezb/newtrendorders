@@ -32,19 +32,18 @@ existing_ids = set(sheet.col_values(1))
 # ---------------- PLAYWRIGHT ----------------
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
-    page = browser.new_page()
+    context = browser.new_context()
+    page = context.new_page()
 
-    # LOGIN REAL
     page.goto(LOGIN_URL)
 
     page.fill('input[name="Username"]', USERNAME)
     page.fill('input[name="Password"]', PASSWORD)
     page.click('button[type="submit"]')
 
-    page.wait_for_timeout(5000)
+    page.wait_for_load_state("networkidle")
 
-    # LLAMADA AL ENDPOINT YA AUTENTICADO
-    response = page.request.get(ORDERS_URL, params={
+    response = context.request.get(ORDERS_URL, params={
         "is_admin": 0,
         "is_vendor": 1,
         "is_seller": 0,
