@@ -43,19 +43,15 @@ with sync_playwright() as p:
 
     #page.wait_for_timeout(5000)
 
-    page.goto(LOGIN_URL, wait_until="domcontentloaded")
+    page.goto(LOGIN_URL)
 
-print("URL:", page.url)
-print("TITLE:", page.title())
-
-page.screenshot(path="debug-login.png", full_page=True)
-
-print(page.content()[:3000])
-
-page.wait_for_selector('input[name="username"]', timeout=60000)
+page.wait_for_selector(
+    'input[name="username"]',
+    state="visible",
+    timeout=60000
+)
 
 page.fill('input[name="username"]', USERNAME)
-
 
     # LLAMADA AL ENDPOINT YA AUTENTICADO
     response = page.request.get(ORDERS_URL, params={
