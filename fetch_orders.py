@@ -9,7 +9,7 @@ PASSWORD = os.environ["PASSWORD"]
 
 GOOGLE_CREDS = json.loads(os.environ["GOOGLE_CREDS"])
 
-BASE_URL = "https://new-trend.info/staff"
+BASE_URL = "https://new-trend.info"
 
 LOGIN_URL = f"{BASE_URL}/login.php"
 ORDERS_URL = f"{BASE_URL}/pages/page_orders_get.php"
