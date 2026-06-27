@@ -43,7 +43,9 @@ params = {
 }
 
 resp = session.get(ORDERS_URL, params=params)
-data = resp.json()
+print(resp.status_code)
+print(resp.text[:1000])
+exit()
 
 orders = data.get("data", [])
 
