@@ -37,8 +37,8 @@ with sync_playwright() as p:
 
     page.goto(LOGIN_URL)
 
-    page.fill('input[name="Username"]', USERNAME)
-    page.fill('input[name="Password"]', PASSWORD)
+    page.fill('input[placeholder="Username"]', USERNAME)
+    page.fill('input[placeholder="Password"]', PASSWORD)
     page.click('button[type="submit"]')
 
     page.wait_for_load_state("networkidle")
