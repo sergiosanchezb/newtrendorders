@@ -4,14 +4,13 @@ from playwright.sync_api import sync_playwright
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-USERNAME = os.environ["USERNAME"]
+USERNAME = os.environ["SITE_USERNAME"]
 PASSWORD = os.environ["PASSWORD"]
 
 GOOGLE_CREDS = json.loads(os.environ["GOOGLE_CREDS"])
 
 BASE_URL = "https://new-trend.info/staff"
 LOGIN_URL = f"{BASE_URL}/login.php"
-ORDERS_URL = f"{BASE_URL}/pages/page_orders_get.php"
 
 # ---------------- GOOGLE SHEETS ----------------
 scope = [
@@ -37,38 +36,41 @@ with sync_playwright() as p:
     page.click('button[type="submit"]')
     page.wait_for_load_state("networkidle")
 
-    # Verificar que el login fue exitoso
-    current_url = page.url
-    print(f"URL después del login: {current_url}")
+    print(f"URL después del login: {page.url}")
+    if "login" in page.url.lower():
+        raise Exception("❌ Login fallido - verificar SITE_USERNAME y PASSWORD en los secrets de GitHub")
 
-    if "login" in current_url.lower():
-        raise Exception("❌ Login fallido - verificar USERNAME y PASSWORD en los secrets de GitHub")
+    # INTERCEPTAR REQUESTS
+    captured = []
 
-    # OBTENER PEDIDOS
-    response = context.request.get(ORDERS_URL, params={
-        "is_admin": 0,
-        "is_vendor": 1,
-        "is_seller": 0,
-        "is_agent": 0,
-        "show_direct": 1,
-        "view_type": "ALL",
-        "user_id": "%",
-        "vendor_code": "CH",
-        "datefilter": "TODAY"
-    })
+    def handle_response(response):
+        if "page_orders_get.php" in response.url:
+            print(f"🔍 URL interceptada: {response.url}")
+            try:
+                body = response.json()
+                print(f"📦 Respuesta: {str(body)[:300]}")
+                captured.append((response.url, body))
+            except Exception as e:
+                print(f"⚠️ Error parseando: {e}")
 
-    print(f"Status HTTP: {response.status}")
-    raw = response.text()
-    print(f"Respuesta cruda (primeros 300 chars): {raw[:300]}")
+    page.on("response", handle_response)
 
-    data = response.json()
+    # CARGAR HOME (donde están los pedidos)
+    page.goto(f"{BASE_URL}/")
+    page.wait_for_load_state("networkidle")
+    page.wait_for_timeout(3000)
 
-    # ✅ Validar que la respuesta es un dict con datos
+    print(f"Total requests interceptadas: {len(captured)}")
+    for url, body in captured:
+        print(f"  → {url}")
+
+    if not captured:
+        raise Exception("❌ No se interceptó page_orders_get.php — la web puede usar otro endpoint")
+
+    data = captured[0][1]
+
     if not isinstance(data, dict):
-        raise Exception(f"❌ Respuesta inesperada del servidor: {data} (tipo: {type(data).__name__})")
-
-    if not data.get("success", True) is False:
-        print(f"⚠️ La API reportó error: {data}")
+        raise Exception(f"❌ Respuesta inesperada: {data} (tipo: {type(data).__name__})")
 
     orders = data.get("data", [])
     print(f"ORDERS FOUND: {len(orders)}")
