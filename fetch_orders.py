@@ -40,64 +40,38 @@ with sync_playwright() as p:
     if "login" in page.url.lower():
         raise Exception("❌ Login fallido")
 
-    # INTERCEPTAR REQUESTS JSON
-    captured = []
+    # INTERCEPTAR LA URL EXACTA QUE USA LA WEB
+    captured_url = []
 
-    def handle_response(response):
-        url = response.url
-        if "new-trend.info" in url and ".php" in url:
-            content_type = response.headers.get("content-type", "")
-            if "json" in content_type:
-                try:
-                    body = response.json()
-                    print(f"📥 JSON capturado: {url}")
-                    print(f"   {str(body)[:200]}")
-                    captured.append((url, body))
-                except:
-                    pass
+    def handle_request(request):
+        if "page_orders_get.php" in request.url:
+            print(f"📤 URL completa capturada:")
+            print(request.url)
+            captured_url.append(request.url)
 
-    page.on("response", handle_response)
+    page.on("request", handle_request)
 
-    # NAVEGAR A LA PÁGINA DE PEDIDOS DE HOY
-    orders_url = f"{BASE_URL}/move.php?d=Vendor_Orders_View%20ALL%20CH%20TODAY"
-    print(f"Navegando a: {orders_url}")
-    page.goto(orders_url)
+    # NAVEGAR A PEDIDOS
+    page.goto(f"{BASE_URL}/move.php?d=Vendor_Orders_View%20ALL%20CH%20TODAY")
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(5000)
 
-    print(f"URL final: {page.url}")
-    print(f"Total requests JSON capturadas: {len(captured)}")
-    for url, body in captured:
-        print(f"  → {url}")
+    if not captured_url:
+        raise Exception("❌ No se capturó la URL de pedidos")
 
-    if not captured:
-        # Debug: imprimir todas las requests .php
-        print("\n=== TODAS LAS REQUESTS .PHP ===")
-        all_php = []
+    # HACER LA MISMA REQUEST CON LAS COOKIES DE SESIÓN ACTIVAS
+    print(f"\nHaciendo request con URL capturada...")
+    response = context.request.get(captured_url[0])
+    print(f"Status: {response.status}")
+    raw = response.text()
+    print(f"Respuesta (primeros 500 chars): {raw[:500]}")
 
-        def handle_request_debug(request):
-            if ".php" in request.url and "new-trend.info" in request.url:
-                all_php.append(request.url)
-                print(f"  {request.method} {request.url}")
+    data = response.json()
 
-        page.on("request", handle_request_debug)
-        page.reload()
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000)
-        raise Exception("❌ No se capturó JSON — ver requests .php arriba")
+    if not isinstance(data, dict):
+        raise Exception(f"❌ Respuesta inesperada: {data}")
 
-    # Buscar el que contiene los pedidos
-    orders_data = None
-    for url, body in captured:
-        if isinstance(body, dict) and "data" in body:
-            print(f"✅ Endpoint de pedidos: {url}")
-            orders_data = body
-            break
-
-    if orders_data is None:
-        raise Exception(f"❌ Ningún endpoint devolvió 'data'. Capturados: {[u for u,_ in captured]}")
-
-    orders = orders_data.get("data", [])
+    orders = data.get("data", [])
     print(f"ORDERS FOUND: {len(orders)}")
 
     # INSERTAR EN SHEETS
