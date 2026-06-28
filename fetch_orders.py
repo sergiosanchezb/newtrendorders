@@ -1,17 +1,26 @@
 import os
 import json
-import re
+import requests
 from playwright.sync_api import sync_playwright
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 USERNAME = os.environ["USERNAME"]
 PASSWORD = os.environ["PASSWORD"]
-
 GOOGLE_CREDS = json.loads(os.environ["GOOGLE_CREDS"])
+TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
+TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 BASE_URL = "https://new-trend.info/staff"
 LOGIN_URL = f"{BASE_URL}/login.php"
+
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    requests.post(url, data={
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML"
+    })
 
 # ---------------- GOOGLE SHEETS ----------------
 scope = [
@@ -23,7 +32,6 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDS, scope)
 client = gspread.authorize(creds)
 sheet = client.open("Orders").sheet1
 
-# Crear cabeceras si la hoja está vacía
 if not sheet.row_values(1):
     sheet.append_row([
         "Order Date", "ASIN", "Marketplace", "Product Name",
@@ -32,7 +40,7 @@ if not sheet.row_values(1):
         "Code", "Price", "Commission", "Description", "Status"
     ])
 
-existing_ids = set(sheet.col_values(1)[1:])  # saltar cabecera
+existing_ids = set(sheet.col_values(1)[1:])
 
 # ---------------- PLAYWRIGHT ----------------
 with sync_playwright() as p:
@@ -82,23 +90,37 @@ with sync_playwright() as p:
             continue
 
         sheet.append_row([
-            o.get("inserimento", ""),        # A: Order Date
-            o.get("asin", ""),               # B: ASIN
-            o.get("store", ""),              # C: Marketplace (store)
-            o.get("title", ""),              # D: Product Name
-            o.get("ordine", ""),             # E: Order Number
-            o.get("imgordine", ""),          # F: Order Screenshot (URL)
-            o.get("brand", ""),              # G: Seller
-            o.get("profilo", ""),            # H: Customer Profile
-            o.get("paypal", ""),             # I: Customer PayPal
-            o.get("keywords", ""),           # J: Keywords
-            o.get("codice", ""),             # K: Code
-            o.get("prezzo", ""),             # L: Price
-            o.get("commissione", ""),        # M: Commission
-            o.get("description", ""),        # N: Description
-            o.get("show_button", ""),        # O: Status
+            o.get("inserimento", ""),
+            o.get("asin", ""),
+            o.get("store", ""),
+            o.get("title", ""),
+            o.get("ordine", ""),
+            o.get("imgordine", ""),
+            o.get("brand", ""),
+            o.get("profilo", ""),
+            o.get("paypal", ""),
+            o.get("keywords", ""),
+            o.get("codice", ""),
+            o.get("prezzo", ""),
+            o.get("commissione", ""),
+            o.get("description", ""),
+            o.get("show_button", ""),
         ])
-        print(f"✅ Insertado pedido {oid}")
+
+        # Notificación Telegram
+        msg = (
+            f"🛒 <b>Nuevo pedido #{oid}</b>\n"
+            f"📦 <b>Producto:</b> {o.get('title', '')}\n"
+            f"🏪 <b>Tienda:</b> {o.get('store', '')}\n"
+            f"🔖 <b>ASIN:</b> {o.get('asin', '')}\n"
+            f"📋 <b>Nº Pedido:</b> {o.get('ordine', '')}\n"
+            f"💶 <b>Precio:</b> {o.get('prezzo', '')}\n"
+            f"💰 <b>Comisión:</b> {o.get('commissione', '')}\n"
+            f"📝 <b>Descripción:</b> {o.get('description', '')}\n"
+            f"📅 <b>Fecha:</b> {o.get('inserimento', '')}"
+        )
+        send_telegram(msg)
+        print(f"✅ Insertado y notificado pedido {oid}")
         inserted += 1
 
     print(f"SYNC DONE — {inserted} pedidos nuevos insertados")
