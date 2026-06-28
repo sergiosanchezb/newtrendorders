@@ -32,15 +32,18 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDS, scope)
 client = gspread.authorize(creds)
 sheet = client.open("Orders").sheet1
 
+# Cabeceras con ID como primera columna
 if not sheet.row_values(1):
     sheet.append_row([
-        "Order Date", "ASIN", "Marketplace", "Product Name",
+        "ID", "Order Date", "ASIN", "Marketplace", "Product Name",
         "Order Number", "Order Screenshot", "Seller",
         "Customer Profile", "Customer PayPal", "Keywords",
         "Code", "Price", "Commission", "Description", "Status"
     ])
 
+# Leer IDs existentes de la columna A (ignorando cabecera)
 existing_ids = set(sheet.col_values(1)[1:])
+print(f"IDs existentes en sheet: {existing_ids}")
 
 # ---------------- PLAYWRIGHT ----------------
 with sync_playwright() as p:
@@ -90,25 +93,25 @@ with sync_playwright() as p:
             continue
 
         sheet.append_row([
-            o.get("inserimento", ""),
-            o.get("asin", ""),
-            o.get("store", ""),
-            o.get("title", ""),
-            o.get("ordine", ""),
-            o.get("imgordine", ""),
-            o.get("brand", ""),
-            o.get("profilo", ""),
-            o.get("paypal", ""),
-            o.get("keywords", ""),
-            o.get("codice", ""),
-            o.get("prezzo", ""),
-            o.get("commissione", ""),
-            o.get("description", ""),
-            o.get("show_button", ""),
+            oid,                             # A: ID
+            o.get("inserimento", ""),        # B: Order Date
+            o.get("asin", ""),               # C: ASIN
+            o.get("store", ""),              # D: Marketplace
+            o.get("title", ""),              # E: Product Name
+            o.get("ordine", ""),             # F: Order Number
+            o.get("imgordine", ""),          # G: Order Screenshot
+            o.get("brand", ""),              # H: Seller
+            o.get("profilo", ""),            # I: Customer Profile
+            o.get("paypal", ""),             # J: Customer PayPal
+            o.get("keywords", ""),           # K: Keywords
+            o.get("codice", ""),             # L: Code
+            o.get("prezzo", ""),             # M: Price
+            o.get("commissione", ""),        # N: Commission
+            o.get("description", ""),        # O: Description
+            o.get("show_button", ""),        # P: Status
         ])
 
-        # Notificación Telegram
-        msg = (
+        send_telegram(
             f"🛒 <b>Nuevo pedido #{oid}</b>\n"
             f"📦 <b>Producto:</b> {o.get('title', '')}\n"
             f"🏪 <b>Tienda:</b> {o.get('store', '')}\n"
@@ -119,8 +122,9 @@ with sync_playwright() as p:
             f"📝 <b>Descripción:</b> {o.get('description', '')}\n"
             f"📅 <b>Fecha:</b> {o.get('inserimento', '')}"
         )
-        send_telegram(msg)
+
         print(f"✅ Insertado y notificado pedido {oid}")
+        existing_ids.add(oid)
         inserted += 1
 
     print(f"SYNC DONE — {inserted} pedidos nuevos insertados")
